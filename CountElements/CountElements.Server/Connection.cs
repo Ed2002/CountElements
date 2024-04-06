@@ -1,35 +1,37 @@
-﻿using System.IO.Pipes;
+﻿using CountElements.Server.Domain;
+using System.IO.Pipes;
 
 namespace CountElements.Server
 {
-    public class Connection
+    public class Connection(string NamePipeline = ".myPipe")
     {
-        private string NamePipeline = string.Empty;
-
-        public Connection(string _namePipeline = ".myPipe") => NamePipeline = _namePipeline;
-
         public async Task Start()
         {
             try
             {
-                while (true)
+                CountFoods PipeCountFoods = new();
+                CountData PipeCountData = new();
+
+                while (PipeCountData.CountFoods)
                 {
+                    Thread CountThread = new(() => PipeCountFoods.CountElements(new CountData()));
+                    CountThread.Start();
+
                     using (NamedPipeServerStream PipeServer = new(NamePipeline))
                     {
                         await PipeServer.WaitForConnectionAsync();
-
-                        using (StreamReader reader = new(PipeServer))
+                        
                         using (StreamWriter writer = new(PipeServer))
                         {
-                            string? receivedMessage = await reader.ReadLineAsync();
-                            Console.WriteLine($"[Client]: {receivedMessage}");
-
-                            if(!string.IsNullOrEmpty(receivedMessage) && receivedMessage.ToLower().Equals("ping")) 
-                                await writer.WriteLineAsync("pong");
-                            
-                            await writer.WriteLineAsync("Mensagem Received");
+                            string t = PipeCountFoods.GetCountDataAsString(PipeCountData);
+                            await writer.WriteLineAsync(t);
+                            await writer.FlushAsync();
                         }
+
+                        Thread.Sleep(2000);
                     }
+
+                    CountThread.Join();
                 }
             }
             catch (Exception ex)
